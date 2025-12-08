@@ -1,26 +1,49 @@
-const mysql = require("mysql");
-const util = require("util");
-const db = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "",
-  database: "test_swisslife_db"
+const mysql = require('mysql2');
+require('dotenv').config();
+
+const connection = mysql.createConnection({
+  host: process.env.MYSQLHOST,
+  user: process.env.MYSQLUSER,
+  password: process.env.MYSQLPASSWORD,
+  database: process.env.MYSQLDATABASE,
+  port: process.env.MYSQLPORT,
 });
 
-//Create a Connection to Database
+connection.connect((err) => {
+  if (err) {
+    console.error('❌ MySQL connection failed:', err.message);
+    return;
+  }
+  console.log('✅ MySQL connected successfully');
+});
 
-db.connect((err)=>{
-    if(err!=null){
-        console.log('No Connect to database')
+module.exports = connection;
+
+
+
+// const mysql = require("mysql");
+// const util = require("util");
+// const db = mysql.createConnection({
+//   host: "localhost",
+//   user: "root",
+//   password: "",
+//   database: "test_swisslife_db"
+// });
+
+// //Create a Connection to Database
+
+// db.connect((err)=>{
+//     if(err!=null){
+//         console.log('No Connect to database')
         
-    }else{
-        console.log('💾 Connect to database')
-    }
+//     }else{
+//         console.log('💾 Connect to database')
+//     }
     
-})
-// Promisify for async/await
-db.query = util.promisify(db.query);
-module.exports = db;
+// })
+// // Promisify for async/await
+// db.query = util.promisify(db.query);
+// module.exports = db;
 
 
 

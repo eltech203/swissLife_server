@@ -115,9 +115,9 @@ console.log("Token",req.access_token)
         PartyA: phoneNumber,
         PartyB: shortCode,
         PhoneNumber: phoneNumber,
-        CallBackURL: "https://balanced-ambition-production.up.railway.app/payment/callback",
+        CallBackURL: "https://swisslifeserver-production.up.railway.app/api/mpesa/callback",
         AccountReference: `Payment for Order ${order_id}`,
-        TransactionDesc: transaction_type === "vote" ? "Voting" : "Payment",
+        TransactionDesc: transaction_type === "Order" ? "Order" : "Payment",
       },
     },
     (error, response, body) => {

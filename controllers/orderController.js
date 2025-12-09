@@ -141,24 +141,57 @@ exports.placeOrder = (req, res) => {
 };
 
 
+exports.getOrderByOrderId = async (req, res) => {
+  const { order_id } = req.params;
+
+  try {
+    // get main order
+    const [[order]] = await db.query(
+      `SELECT id, user_id, shipping_name, company_name, country, state, town,
+              address, phone, email, order_type, total_amount, payment_method,
+              status, fulfillment_status, created_at
+       FROM orders
+       WHERE id = ?`,
+      [order_id]
+    );
+
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    // get order items
+    const [items] = await db.query(
+      `SELECT product_id, quantity, price
+       FROM order_items
+       WHERE order_id = ?`,
+      [order_id]
+    );
+
+    order.items = items;
+
+    res.status(200).json(order);
+  } catch (error) {
+    console.error("Error getting order by order_id:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
 
 
 
 
 // ✅ Get orders for a user
 exports.getUserOrders = async (req, res) => {
-  const { user_id } = req.params;
-
+  const { uid } = req.params;
   try {
-    const cacheKey = orderCacheKey(user_id);
+    const cacheKey = orderCacheKey(uid);
 
     const cached = await redisClient.get(cacheKey);
     if (cached) return res.status(200).json(JSON.parse(cached));
 
     const [orders] = await db.query(
       `SELECT id, shipping_name, total_amount, payment_method, status, fulfillment_status, created_at
-       FROM orders WHERE user_id = ? ORDER BY created_at DESC`,
-      [user_id]
+       FROM orders WHERE uid = ? ORDER BY created_at DESC`,
+      [uid]
     );
 
     await redisClient.setEx(cacheKey, 600, JSON.stringify(orders));

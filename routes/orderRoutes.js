@@ -1,12 +1,15 @@
 const express = require("express");
 const router = express.Router();
-const {placeOrder,getUserOrders,getAllOrders,updateOrderStatus,cancelOrder} = require("../controllers/orderController");
+const {placeOrder,getUserOrders,getAllOrders,updateOrderStatus,cancelOrder,getOrderByOrderId} = require("../controllers/orderController");
 
 // Place order
 router.post("/place", placeOrder);
 
 // Get user's orders
-router.get("/:user_id", getUserOrders);
+router.get("/get/:uid", getUserOrders);
+
+// Get user's orders
+router.get("/:order_id", getOrderByOrderId);
 
 // Admin: get all orders
 router.get("/", getAllOrders);

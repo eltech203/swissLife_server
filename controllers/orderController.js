@@ -50,11 +50,12 @@ exports.placeOrder = (req, res) => {
     // Insert order
     db.query(
       `INSERT INTO orders (
-        user_id, shipping_name, company_name, country, state, town,
+        uid,user_id, shipping_name, company_name, country, state, town,
         address, phone, email, order_type, total_amount, payment_method,
         status, fulfillment_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending')`,
+      ) VALUES (?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending')`,
       [
+        uid || null,
         user_id || null,
         shipping_name,
         company_name || null,

@@ -21,122 +21,112 @@ exports.placeOrder = (req, res) => {
     cartItems
   } = req.body;
 
-  console.log("Request body:", req.body);
-
-  // Validate cart items
   const safeCartItems = Array.isArray(cartItems) ? cartItems : [];
   if (safeCartItems.length === 0) {
     return res.status(400).json({ message: "Cart is empty or invalid" });
   }
 
-  // Validate required fields
   if (!shipping_name || !country || !address || !payment_method) {
     return res.status(400).json({ message: "Missing required order fields" });
   }
 
-  // Calculate total_amount
   const totalAmount = safeCartItems.reduce(
     (sum, item) => sum + (item.price || 0) * (item.quantity || 1),
     0
   );
 
-  // Start transaction
-  db.beginTransaction(err => {
+  db.getConnection((err, conn) => {
     if (err) {
-      console.error("Transaction Error:", err);
+      console.error("❌ Connection Error:", err);
       return res.status(500).json({ message: "Server error" });
     }
 
-    // Insert order
-    db.query(
-      `INSERT INTO orders (
-        uid,user_id, shipping_name, company_name, country, state, town,
-        address, phone, email, order_type, total_amount, payment_method,
-        status, fulfillment_status
-      ) VALUES (?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending')`,
-      [
-        uid || null,
-        user_id || null,
-        shipping_name,
-        company_name || null,
-        country,
-        state || null,
-        town || null,
-        address,
-        phone || null,
-        email || null,
-        order_type || "b2b",
-        totalAmount,
-        payment_method
-      ],
-      (err, orderResult) => {
-        if (err) {
-          return db.rollback(() => {
-            console.error("Order Insert Error:", err);
-            return res.status(500).json({ message: "Server error" });
-          });
-        }
+    conn.beginTransaction(err => {
+      if (err) {
+        conn.release();
+        console.error("❌ Transaction Error:", err);
+        return res.status(500).json({ message: "Server error" });
+      }
 
-        const orderId = orderResult.insertId;
+      conn.query(
+        `INSERT INTO orders (
+          uid, user_id, shipping_name, company_name, country, state, town,
+          address, phone, email, order_type, total_amount, payment_method,
+          status, fulfillment_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending')`,
+        [
+          uid || null,
+          user_id || null,
+          shipping_name,
+          company_name || null,
+          country,
+          state || null,
+          town || null,
+          address,
+          phone || null,
+          email || null,
+          order_type || "b2b",
+          totalAmount,
+          payment_method
+        ],
+        (err, orderResult) => {
+          if (err) {
+            return conn.rollback(() => {
+              conn.release();
+              console.error("❌ Order Insert Error:", err);
+              return res.status(500).json({ message: "Server error" });
+            });
+          }
 
-        // Prepare order_items
-        const itemsValues = safeCartItems.map(item => [
-          orderId,
-          item.product_id,
-          item.quantity || 1,
-          item.price || 0
-        ]);
+          const orderId = orderResult.insertId;
 
-        if (itemsValues.length === 0) {
-          return db.commit(commitErr => {
-            if (commitErr) {
-              return db.rollback(() => {
-                console.error("Commit Error:", commitErr);
-                return res.status(500).json({ message: "Server error" });
-              });
-            }
-            return res.status(200).json({ message: "Order placed successfully", order_id: orderId, total_amount: totalAmount });
-          });
-        }
+          const itemsValues = safeCartItems.map(item => [
+            orderId,
+            item.product_id,
+            item.quantity || 1,
+            item.price || 0
+          ]);
 
-        // Insert order_items
-        db.query(
-          `INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ?`,
-          [itemsValues],
-          (err) => {
-            if (err) {
-              return db.rollback(() => {
-                console.error("Order Items Insert Error:", err);
-                return res.status(500).json({ message: "Server error" });
-              });
-            }
-
-            // Commit transaction
-            db.commit(commitErr => {
-              if (commitErr) {
-                return db.rollback(() => {
-                  console.error("Commit Error:", commitErr);
+          conn.query(
+            `INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ?`,
+            [itemsValues],
+            (err) => {
+              if (err) {
+                return conn.rollback(() => {
+                  conn.release();
+                  console.error("❌ Order Items Insert Error:", err);
                   return res.status(500).json({ message: "Server error" });
                 });
               }
 
-              // Clear cart if user exists
-              if (user_id) {
-                db.query(`DELETE FROM cart_items WHERE uid = ?`, [uid], () => {});
-                redisClient.del(`cart:${user_id}`);
-                redisClient.del(orderCacheKey(user_id));
-              }
+              conn.commit(commitErr => {
+                if (commitErr) {
+                  return conn.rollback(() => {
+                    conn.release();
+                    console.error("❌ Commit Error:", commitErr);
+                    return res.status(500).json({ message: "Server error" });
+                  });
+                }
 
-              res.status(200).json({
-                message: "Order placed successfully",
-                order_id: orderId,
-                total_amount: totalAmount
+                conn.release();
+
+                if (uid) {
+                  db.query(`DELETE FROM cart_items WHERE uid = ?`, [uid], () => {});
+                  redisClient.del(`cart:${uid}`);
+                  redisClient.del(orderCacheKey(uid));
+                }
+
+                return res.status(200).json({
+                  message: "Order placed successfully",
+                  order_id: orderId,
+                  total_amount: totalAmount
+                });
               });
-            });
-          }
-        );
-      }
-    );
+            }
+          );
+        }
+      );
+    });
   });
 };
 

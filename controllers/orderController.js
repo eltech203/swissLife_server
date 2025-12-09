@@ -86,7 +86,7 @@ exports.placeOrder = async (req, res) => {
   }
 };
 
-// ✅ Get orders for a user (with items)
+// ✅ Get orders for a user with items and product info
 exports.getUserOrders = async (req, res) => {
   const { uid } = req.params;
 
@@ -95,40 +95,37 @@ exports.getUserOrders = async (req, res) => {
     const cached = await redisClient.get(cacheKey);
     if (cached) return res.status(200).json(JSON.parse(cached));
 
-    // Get all orders for the user
+    // Get orders for the user
     const orders = await query(
       `SELECT id, shipping_name, total_amount, payment_method, status, fulfillment_status, created_at
-       FROM orders WHERE uid = ? ORDER BY created_at DESC`,
+       FROM orders 
+       WHERE uid = ? 
+       ORDER BY created_at DESC`,
       [uid]
     );
 
-    // If no orders, return empty
-    if (!orders || orders.length === 0) {
-      return res.status(200).json([]);
+    // Fetch items for each order
+    for (const order of orders) {
+      const items = await query(
+        `SELECT oi.product_id, p.name, p.image_url, oi.quantity, oi.price
+         FROM order_items oi
+         JOIN products p ON oi.product_id = p.id
+         WHERE oi.order_id = ?`,
+        [order.id]
+      );
+      order.items = items;
     }
 
-    // Fetch items for each order in parallel
-    const ordersWithItems = await Promise.all(
-      orders.map(async (order) => {
-        const items = await query(
-          `SELECT product_id, quantity, price 
-           FROM order_items 
-           WHERE order_id = ?`,
-          [order.id]
-        );
-        return { ...order, items };
-      })
-    );
+    // Cache the result in Redis
+    await redisClient.setEx(cacheKey, 600, JSON.stringify(orders));
 
-    // Cache in Redis
-    await redisClient.setEx(cacheKey, 600, JSON.stringify(ordersWithItems));
-
-    res.status(200).json(ordersWithItems);
+    res.status(200).json(orders);
   } catch (error) {
-    console.error("❌ Error fetching user orders:", error);
+    console.error("❌ Error fetching user orders with items:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
+
 // ✅ Get order by order ID
 exports.getOrderByOrderId = async (req, res) => {
   const { order_id } = req.params;

@@ -1,23 +1,23 @@
 const express = require("express");
 const router = express.Router();
-const {placeOrder,getUserOrders,getAllOrders,updateOrderStatus,cancelOrder,getOrderByOrderId} = require("../controllers/orderController");
+const orderController = require("../controllers/orderController");
 
 // Place order
-router.post("/place", placeOrder);
+router.post("/place", orderController.placeOrder);
 
-// Get user's orders
-router.get("/get/:uid", getUserOrders);
+// Get orders for a specific user by UID
+router.get("/get/:uid", orderController.getUserOrders);
 
-// Get user's orders
-router.get("/:order_id", getOrderByOrderId);
+// Get single order by order_id
+router.get("/order/:order_id", orderController.getOrderByOrderId);
 
 // Admin: get all orders
-router.get("/", getAllOrders);
+router.get("/", orderController.getAllOrders);
 
 // Update order status
-router.put("/status", updateOrderStatus);
+router.put("/status", orderController.updateOrderStatus);
 
 // Cancel order
-router.put("/cancel", cancelOrder);
+router.put("/cancel", orderController.cancelOrder);
 
 module.exports = router;
